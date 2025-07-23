@@ -7,7 +7,7 @@ st.title("📊 AHS Contractor Assignment App")
 
 # File uploaders
 ahs_workplan_file = st.file_uploader("Upload AHS Workplan Excel", type=["xlsx"])
-samxphilip_file = st.file_uploader("Upload SamXPhilip Excel", type=["xlsx"])
+samxphilip_file = st.file_uploader("Upload AHS Data Excel", type=["xlsx"])
 
 if ahs_workplan_file and samxphilip_file:
     AHS_workplan_Sam = pd.read_excel(ahs_workplan_file)
