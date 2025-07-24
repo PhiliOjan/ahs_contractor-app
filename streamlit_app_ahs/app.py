@@ -7,31 +7,31 @@ st.title("📊 AHS Contractor Assignment App")
 
 # File uploaders
 ahs_workplan_file = st.file_uploader("Upload AHS Workplan Excel", type=["xlsx"])
-samxphilip_file = st.file_uploader("Upload AHS Data Excel", type=["xlsx"])
+case_list_file = st.file_uploader("Upload Case List Excel", type=["xlsx"])  # Renamed for clarity
 
-if ahs_workplan_file and samxphilip_file:
-    AHS_workplan_Sam = pd.read_excel(ahs_workplan_file)
-    SamXPhilip = pd.read_excel(samxphilip_file)
+if ahs_workplan_file and case_list_file:
+    ahs_workplan_df = pd.read_excel(ahs_workplan_file)
+    case_list_df = pd.read_excel(case_list_file)
 
     # Create unique identifier
-    SamXPhilip['villageidentifier'] = SamXPhilip['district'].str.title() + "_" + SamXPhilip['cluster'].str.title() + "_" + SamXPhilip['village'].str.title()
-    AHS_workplan_Sam['villageidentifier'] = AHS_workplan_Sam['District'].str.title() + "_" + AHS_workplan_Sam['Cluster'].str.title() + "_" + AHS_workplan_Sam['Villages'].str.title()
+    case_list_df['villageidentifier'] = case_list_df['district'].str.title() + "_" + case_list_df['cluster'].str.title() + "_" + case_list_df['village'].str.title()
+    ahs_workplan_df['villageidentifier'] = ahs_workplan_df['District'].str.title() + "_" + ahs_workplan_df['Cluster'].str.title() + "_" + ahs_workplan_df['Villages'].str.title()
 
     # Merge data
-    merged_case_list_AHS = SamXPhilip.merge(
-        AHS_workplan_Sam[['villageidentifier', 'DAY', 'DATE', 'Contractors Code']],
+    merged_df = case_list_df.merge(
+        ahs_workplan_df[['villageidentifier', 'DAY', 'DATE', 'Contractors Code']],
         on='villageidentifier',
         how='left'
     )
 
-    # 🔍 Drop duplicated IDs before assigning
-    merged_case_list_AHS.drop_duplicates(subset='id', keep='first',inplace=True)
+    # Drop duplicated IDs
+    merged_df.drop_duplicates(subset='id', keep='first', inplace=True)
 
-    # Add logic columns
-    merged_case_list_AHS['contractor_codes'] = merged_case_list_AHS['Contractors Code'].str.split(',')
-    merged_case_list_AHS['priority'] = merged_case_list_AHS['status'].map({'Target': 1, 'Reserve': 2}).fillna(3)
+    # Logic columns
+    merged_df['contractor_codes'] = merged_df['Contractors Code'].str.split(',')
+    merged_df['priority'] = merged_df['status'].map({'Target': 1, 'Reserve': 2}).fillna(3)
 
-    # Assignment logic
+    # Contractor assignment logic
     def assign_contractor(codes, index):
         if not isinstance(codes, list) or not codes:
             return "Not Assigned"
@@ -65,17 +65,36 @@ if ahs_workplan_file and samxphilip_file:
 
         return group
 
-    final_result = merged_case_list_AHS.groupby(['villageidentifier', 'DAY'], group_keys=False).apply(process_group)
+    final_df = merged_df.groupby(['villageidentifier', 'DAY'], group_keys=False).apply(process_group)
 
     # Drop helper columns
-    cleaned_result = final_result.drop(columns=[
+    cleaned_df = final_df.drop(columns=[
         'contractor_codes', 'priority', 'target_row', 'reserve_row', 'other_row',
         'target_count', 'reserve_count', 'villageidentifier'
     ])
 
-    st.success("✅ Assignment complete. Here's the final data:")
-    st.dataframe(cleaned_result)
+    # ✅ Show final results
+    st.success("✅ Contractor Assignment Complete!")
+    st.subheader("📋 Final Assigned Cases")
+    st.dataframe(cleaned_df)
 
-    # Download assigned CSV
-    csv = cleaned_result.to_csv(index=False).encode('utf-8')
-    st.download_button("📥 Download Assigned Contractor CSV", data=csv, file_name="Kisoro_assigned.csv", mime="text/csv")
+    # 🔎 Show mismatch summaries
+    missing_clusters = (
+        merged_df[merged_df['Contractors Code'].isna()]
+        .groupby(['district', 'cluster'])
+        .size()
+        .reset_index(name='missing_count')
+    )
+
+    missing_villages = (
+        merged_df[merged_df['Contractors Code'].isna()]
+        .groupby(['district', 'cluster', 'village'])
+        .size()
+        .reset_index(name='missing_count')
+    )
+
+    st.subheader("📍 Clusters Missing Contractor Codes")
+    st.dataframe(missing_clusters)
+
+    st.subheader("🏘️ Villages Missing Contractor Codes")
+    st.dataframe(missing_villages)
